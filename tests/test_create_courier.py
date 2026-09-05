@@ -1,14 +1,18 @@
 import allure
 import requests
 from data.urls import CREATE_COURIER
-from utils.helpers import generate_random_string, register_new_courier_and_return_login_password
+from utils.helpers import generate_random_string
 
 
 class TestCreateCourier:
 
+    @allure.step("Отправить POST-запрос на создание курьера")
+    def create_courier(self, payload):
+        return requests.post(CREATE_COURIER, data=payload)
+
     @allure.title("Успешное создание курьера")
     @allure.description("Можно создать курьера, передав все обязательные поля. Ожидаем код 201 и тело {\"ok\":true}")
-    def test_create_courier_success(self):
+    def test_create_courier_success(self, courier_cleanup):
         login = generate_random_string(10)
         password = generate_random_string(10)
         first_name = generate_random_string(10)
@@ -19,26 +23,18 @@ class TestCreateCourier:
             "firstName": first_name
         }
 
-        response = requests.post(CREATE_COURIER, data=payload)
+        # Передаем данные в фикстуру очистки для удаления после теста
+        courier_cleanup.update(payload)
+
+        response = self.create_courier(payload)
 
         assert response.status_code == 201
         assert response.json() == {"ok": True}
 
     @allure.title("Нельзя создать двух одинаковых курьеров")
     @allure.description("При попытке создать курьера с уже существующим логином возвращается ошибка")
-    def test_create_duplicate_courier(self):
-        login_pass = register_new_courier_and_return_login_password()
-        login = login_pass[0]
-        password = login_pass[1]
-        first_name = login_pass[2]
-
-        payload = {
-            "login": login,
-            "password": password,
-            "firstName": first_name
-        }
-
-        response = requests.post(CREATE_COURIER, data=payload)
+    def test_create_duplicate_courier(self, registered_courier):
+        response = self.create_courier(registered_courier)
 
         assert response.status_code == 409
         assert response.json()["message"] == "Этот логин уже используется. Попробуйте другой."
@@ -51,7 +47,7 @@ class TestCreateCourier:
             "firstName": generate_random_string(10)
         }
 
-        response = requests.post(CREATE_COURIER, data=payload)
+        response = self.create_courier(payload)
 
         assert response.status_code == 400
         assert response.json()["message"] == "Недостаточно данных для создания учетной записи"
@@ -64,7 +60,7 @@ class TestCreateCourier:
             "firstName": generate_random_string(10)
         }
 
-        response = requests.post(CREATE_COURIER, data=payload)
+        response = self.create_courier(payload)
 
         assert response.status_code == 400
         assert response.json()["message"] == "Недостаточно данных для создания учетной записи"
